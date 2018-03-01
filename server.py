@@ -15,7 +15,7 @@ CONTENT_TYPE = {
     "gif": "image/gif",
     "xml": "application/xml",
     "pdf": "application/pdf"
-}
+    }
 
 
 ROUTES = {
@@ -24,13 +24,18 @@ ROUTES = {
     }
 
 
+def add_route(method, path, function):
+    ROUTES[method][path] = function
+
+
 def form_response(response):
     res = ""
     res_bytes = b""
     res += response["status_line"] + "\r\n"
     for key, value in response.items():
         if key not in ["status_line", "content"]:
-            res += key + ":" + value + "\r\n"
+            # res += key + ":" + value + "\r\n"
+            res += "{0}: {1}\r\n".format(key, value)
     res += "\r\n"
     res_bytes += res.encode()
     if "content" in response:
@@ -53,7 +58,14 @@ def err_404_handler(request, response):
     return response
 
 
-def static_file_handler(request, response):
+def route_handler(request, response, ROUTES):
+    if request["path"][-1] == "/":
+        request["path"] += "index.html"
+    function = ROUTES[request["path"]]
+    return function(request, response)
+
+
+def static_file_handler(request, response, next_):
     if request["path"][-1] == "/":
         request["path"] += "index.html"
     with open("./static" + request["path"], "rb") as file_obj:
@@ -64,43 +76,45 @@ def static_file_handler(request, response):
     return success_200_handler(request, response)
 
 
-def add_route(method, path, function):
-    ROUTES[method][path] = function
+# def get_handler(request, response):
+#     try:
+#         return static_file_handler(request, response)
+#     except OSError:
+#         try:
+#             return route_handler(request, response, ROUTES["GET"])
+#         except KeyError:
+#                 return err_404_handler(request, response)
 
 
-def route_handler(request, response, ROUTES):
-    if request["path"][-1] == "/":
-        request["path"] += "index.html"
-    function = ROUTES[request["path"]]
-    return function(request, response)
+# def post_handler(request, response):
+#     pass
 
 
-def get_handler(request, response):
-    try:
-        return static_file_handler(request, response)
-    except OSError:
-        try:
-            return route_handler(request, response, ROUTES["GET"])
-        except KeyError:
-                return err_404_handler(request, response)
+# def method_handler(request, response):
+#     METHODS = {"GET" : get_handler,
+#         "POST" : post_handler
+#     }
+#     handler = METHODS[request["method"]]
+#     return handler(request, response)
 
 
-def post_handler(request, response):
-    pass
-
-
-def method_handler(request, response):
-    METHODS = {"GET" : get_handler,
-        "POST" : post_handler
-    }
-    handler = METHODS[request["method"]]
-    return handler(request, response)
+handler_list = [static_file_handler, route_handler, err_404_handler]
+def create_next():
+    counter = 0
+    def next_func(request, response):
+        nonlocal counter
+        func = handler_list[counter]
+        counter += 1
+        func(request, response, next_)
+    return next_func
 
 
 def request_handler(request):
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
-    return method_handler(request, response)
+    next_ = create_next()
+    next_(request, response)
+    # return method_handler(request, response)
 
 
 def get_query_content(request):
@@ -133,26 +147,18 @@ def header_parser(request, header_stream):
             cookie_content[key] = val
         header["Cookie"] = cookie_content
     request["header"] = header
-    return request
 
 
 def request_parser(request_data):
     request = {}
     header_stream = request_data.split(b"\r\n\r\n")[0]
-    request = header_parser(request, header_stream)
+    header_parser(request, header_stream)
     if "Content-Length" in request["header"]:
         body_stream = request_data.split(b"\r\n\r\n")[1]
         request["body"] = body_stream.decode()
         if "Content-Type" in header and header["Content-Type"] == "application/json":
             request["body"] = json.loads(request["body"])
-    pprint.pprint(request) ####################################################
     return request
-
-
-def handler_series():
-    handler_list = [request_handler, method_handler, get_handler, post_handler,\
-        static_file_handler, route_handler, success_handler, err_404_handler]
-    return
 
 
 def execute_server(HOST, PORT):
@@ -164,10 +170,10 @@ def execute_server(HOST, PORT):
     while True:
         client_connection, client_address = listen_socket.accept()
         request_data = client_connection.recv(1024)
-        # print("+++++++", request_data, "+++++++++")
         request = request_parser(request_data)
+        print("=======", request)
         http_response = request_handler(request)
-        print("response:\n", http_response) ###################################
+        print("response:\n", http_response)
         client_connection.send(http_response)
         client_connection.close()
 
