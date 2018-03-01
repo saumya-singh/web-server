@@ -28,13 +28,12 @@ def add_route(method, path, function):
     ROUTES[method][path] = function
 
 
-def form_response(response):
+def make_response(response):
     res = ""
     res_bytes = b""
     res += response["status_line"] + "\r\n"
     for key, value in response.items():
         if key not in ["status_line", "content"]:
-            # res += key + ":" + value + "\r\n"
             res += "{0}: {1}\r\n".format(key, value)
     res += "\r\n"
     res_bytes += res.encode()
@@ -44,19 +43,19 @@ def form_response(response):
     return response
 
 
-def success_200_handler(request, response):
+def ok_200_headers(request, response):
     response["status_line"] = "HTTP/1.1 200 OK"
-    content_type = request["path"].split(".")[1]
-    response["Content-Type"] = CONTENT_TYPE[content_type]
+    # content_type = request["path"].split(".")[1]
+    # response["Content-Type"] = CONTENT_TYPE[content_type]
     if response["content"]:
         response["Content-Length"] = str(len(response["content"]))
-    response = form_response(response)
+    response = make_response(response)
     return response
 
 
 def err_404_handler(request, response, next_):
     response["status_line"] = "HTTP/1.1 404 Not Found"
-    response = form_response(response)
+    response = make_response(response)
     return response
 
 
@@ -70,10 +69,10 @@ def route_handler(request, response, next_):
             request["path"] += "index.html"
         function = routes[request["path"]]
         res_body = function(request, response)
-        response["content"] = res_body
-        return success_200_handler(request, response)
+        response["content"] = res_body.encode()
+        return ok_200_headers(request, response)
     except KeyError:
-        next_(request, response)
+        return next_(request, response, next_)
 
 
 def static_file_handler(request, response, next_):
@@ -83,42 +82,22 @@ def static_file_handler(request, response, next_):
                 request["path"] += "index.html"
             with open("./static" + request["path"], "rb") as file_obj:
                 res_body = file_obj.read()
-            response["content"] = res_body
-            return success_200_handler(request, response)
+        except OSError:
+            return next_(request, response, next_)
+        response["content"] = res_body
+        return ok_200_headers(request, response)
     else:
-        next_(request, response)
-
-
-# def get_handler(request, response):
-#     try:
-#         return static_file_handler(request, response)
-#     except OSError:
-#         try:
-#             return route_handler(request, response, ROUTES["GET"])
-#         except KeyError:
-#                 return err_404_handler(request, response)
-
-
-# def post_handler(request, response):
-#     pass
-
-
-# def method_handler(request, response):
-#     METHODS = {"GET" : get_handler,
-#         "POST" : post_handler
-#     }
-#     handler = METHODS[request["method"]]
-#     return handler(request, response)
+        return next_(request, response, next_)
 
 
 handler_list = [static_file_handler, route_handler, err_404_handler]
 def create_next():
     counter = 0
-    def next_func(request, response):
+    def next_func(request, response, next_):
         nonlocal counter
         func = handler_list[counter]
         counter += 1
-        func(request, response, next_)
+        return func(request, response, next_)
     return next_func
 
 
@@ -126,8 +105,7 @@ def request_handler(request):
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
-    next_(request, response)
-    # return method_handler(request, response)
+    return next_(request, response, next_)
 
 
 def get_query_content(request):
@@ -169,8 +147,8 @@ def request_parser(request_data):
     if "Content-Length" in request["header"]:
         body_stream = request_data.split(b"\r\n\r\n")[1]
         request["body"] = body_stream.decode()
-        if "Content-Type" in header and header["Content-Type"] == "application/json":
-            request["body"] = json.loads(request["body"])
+    # if "Content-Type" in request["header"] and request["header"]["Content-Type"] == "application/json":
+    #     request["body"] = json.loads(request["body"])
     return request
 
 
@@ -184,7 +162,9 @@ def execute_server(HOST, PORT):
         client_connection, client_address = listen_socket.accept()
         request_data = client_connection.recv(1024)
         request = request_parser(request_data)
-        print("=======", request)
+        print("==================")
+        pprint.pprint(request)
+        print("==================")
         http_response = request_handler(request)
         print("response:\n", http_response)
         client_connection.send(http_response)
