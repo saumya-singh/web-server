@@ -46,34 +46,47 @@ def form_response(response):
 
 def success_200_handler(request, response):
     response["status_line"] = "HTTP/1.1 200 OK"
+    content_type = request["path"].split(".")[1]
+    response["Content-Type"] = CONTENT_TYPE[content_type]
     if response["content"]:
         response["Content-Length"] = str(len(response["content"]))
     response = form_response(response)
     return response
 
 
-def err_404_handler(request, response):
+def err_404_handler(request, response, next_):
     response["status_line"] = "HTTP/1.1 404 Not Found"
     response = form_response(response)
     return response
 
 
-def route_handler(request, response, ROUTES):
-    if request["path"][-1] == "/":
-        request["path"] += "index.html"
-    function = ROUTES[request["path"]]
-    return function(request, response)
+def route_handler(request, response, next_):
+    if request["method"] == "GET":
+        routes = ROUTES["GET"]
+    elif request["method"] == "POST":
+        routes = ROUTES["POST"]
+    try:
+        if request["path"][-1] == "/":
+            request["path"] += "index.html"
+        function = routes[request["path"]]
+        res_body = function(request, response)
+        response["content"] = res_body
+        return success_200_handler(request, response)
+    except KeyError:
+        next_(request, response)
 
 
 def static_file_handler(request, response, next_):
-    if request["path"][-1] == "/":
-        request["path"] += "index.html"
-    with open("./static" + request["path"], "rb") as file_obj:
-        res_body = file_obj.read()
-    response["content"] = res_body
-    content_type = request["path"].split(".")[1]
-    response["Content-Type"] = CONTENT_TYPE[content_type]
-    return success_200_handler(request, response)
+    if request["method"] == "GET":
+        try:
+            if request["path"][-1] == "/":
+                request["path"] += "index.html"
+            with open("./static" + request["path"], "rb") as file_obj:
+                res_body = file_obj.read()
+            response["content"] = res_body
+            return success_200_handler(request, response)
+    else:
+        next_(request, response)
 
 
 # def get_handler(request, response):
