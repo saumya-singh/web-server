@@ -43,10 +43,8 @@ def make_response(response):
     return response
 
 
-def ok_200_headers(request, response):
+def ok_200_add_headers(response):
     response["status_line"] = "HTTP/1.1 200 OK"
-    # content_type = request["path"].split(".")[1]
-    # response["Content-Type"] = CONTENT_TYPE[content_type]
     if response["content"]:
         response["Content-Length"] = str(len(response["content"]))
     response = make_response(response)
@@ -70,7 +68,7 @@ def route_handler(request, response, next_):
         function = routes[request["path"]]
         res_body = function(request, response)
         response["content"] = res_body.encode()
-        return ok_200_headers(request, response)
+        return ok_200_add_headers(response)
     except KeyError:
         return next_(request, response, next_)
 
@@ -84,13 +82,23 @@ def static_file_handler(request, response, next_):
                 res_body = file_obj.read()
         except OSError:
             return next_(request, response, next_)
+        content_type = request["path"].split(".")[1]
+        response["Content-Type"] = CONTENT_TYPE[content_type]
         response["content"] = res_body
-        return ok_200_headers(request, response)
+        return ok_200_add_headers(response)
     else:
         return next_(request, response, next_)
 
 
-handler_list = [static_file_handler, route_handler, err_404_handler]
+def body_handler(request, response, next_):
+    if "Content-Type" in request["header"] and "application/json" \
+                                        in request["header"]["Content-Type"]:
+        request["body"] = json.loads(request["body"])
+    return next_(request, response, next_)
+
+
+handler_list = [body_handler, static_file_handler, route_handler,\
+                                                    err_404_handler]
 def create_next():
     counter = 0
     def next_func(request, response, next_):
@@ -147,8 +155,6 @@ def request_parser(request_data):
     if "Content-Length" in request["header"]:
         body_stream = request_data.split(b"\r\n\r\n")[1]
         request["body"] = body_stream.decode()
-    # if "Content-Type" in request["header"] and request["header"]["Content-Type"] == "application/json":
-    #     request["body"] = json.loads(request["body"])
     return request
 
 
@@ -161,6 +167,11 @@ def execute_server(HOST, PORT):
     while True:
         client_connection, client_address = listen_socket.accept()
         request_data = client_connection.recv(1024)
+        if request_data == b'':
+            client_connection.close()
+        print("*********")
+        print(request_data)
+        print("*********")
         request = request_parser(request_data)
         print("==================")
         pprint.pprint(request)
