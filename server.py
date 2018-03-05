@@ -99,6 +99,7 @@ def body_handler(request, response, next_):
 
 handler_list = [body_handler, static_file_handler, route_handler,\
                                                     err_404_handler]
+                                                    
 def create_next():
     counter = 0
     def next_func(request, response, next_):
