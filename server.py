@@ -1,6 +1,6 @@
 import socket
 import pprint
-import json
+import json, re
 
 
 CONTENT_TYPE = {
@@ -24,8 +24,15 @@ ROUTES = {
     }
 
 
+def build_regex_path(path):
+    pattern_obj = re.compile(r'(<\w+>)')
+    regex = pattern_obj.sub(r'(?P\1.+)', path)
+    return '^{}$'.format(regex)
+
+
 def add_route(method, path, function):
-    ROUTES[method][path] = function
+    regex_path = build_regex_path(path)
+    ROUTES[method][regex_path] = function
 
 
 def make_response(response):
@@ -58,19 +65,21 @@ def err_404_handler(request, response, next_):
 
 
 def route_handler(request, response, next_):
+    flag = 0
     if request["method"] == "GET":
         routes = ROUTES["GET"]
     elif request["method"] == "POST":
         routes = ROUTES["POST"]
-    try:
-        if request["path"][-1] == "/":
-            request["path"] += "index.html"
-        function = routes[request["path"]]
-        res_body = function(request, response)
-        response["content"] = res_body.encode()
-        return ok_200_add_headers(response)
-    except KeyError:
+    for regex, function in routes.items():
+        answer = re.match(regex, request["path"])
+        if answer:
+            res_body = function(request, response, **answer.groupdict())
+            flag = 1
+            break
+    if flag == 0:
         return next_(request, response, next_)
+    response["content"] = res_body.encode()
+    return ok_200_add_headers(response)
 
 
 def static_file_handler(request, response, next_):
@@ -99,7 +108,7 @@ def body_handler(request, response, next_):
 
 handler_list = [body_handler, static_file_handler, route_handler,\
                                                     err_404_handler]
-                                                    
+
 def create_next():
     counter = 0
     def next_func(request, response, next_):
