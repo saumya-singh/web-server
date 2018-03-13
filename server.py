@@ -1,4 +1,5 @@
 import socket
+import asyncio
 import pprint
 import json, re
 
@@ -168,28 +169,54 @@ def request_parser(request_data):
     return request
 
 
-def execute_server(HOST, PORT):
-    listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listen_socket.bind((HOST, PORT))
-    listen_socket.listen(1)
-    print('Serving HTTP on port %s ...' % PORT)
-    while True:
-        client_connection, client_address = listen_socket.accept()
-        request_data = client_connection.recv(1024)
-        if request_data == b'':
-            client_connection.close()
-        print("*********")
-        print(request_data)
-        print("*********")
-        request = request_parser(request_data)
-        print("==================")
-        pprint.pprint(request)
-        print("==================")
-        http_response = request_handler(request)
-        print("response:\n", http_response)
-        client_connection.send(http_response)
-        client_connection.close()
+# def execute_server(HOST, PORT):
+#     listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+#     listen_socket.bind((HOST, PORT))
+#     listen_socket.listen(1)
+#     print('Serving HTTP on port %s ...' % PORT)
+#     while True:
+#         client_connection, client_address = listen_socket.accept()
+#         request_data = client_connection.recv(1024)
+#         if request_data == b'':
+#             client_connection.close()
+#         print("*********")
+#         print(request_data)
+#         print("*********")
+#         request = request_parser(request_data)
+#         print("==================")
+#         pprint.pprint(request)
+#         print("==================")
+#         http_response = request_handler(request)
+#         print("response:\n", http_response)
+#         client_connection.send(http_response)
+#         client_connection.close()
+
+
+async def handle_message(reader, writer):
+    data = await reader.read(100)
+    message = data.decode()
+    addr = writer.get_extra_info('peername')
+    print("Received %r from %r" % (message, addr))
+
+    writer.write(data)
+    await writer.drain()
+    print("Close the client socket")
+    writer.close()
+
+
+def execute_server():
+    loop = asyncio.get_event_loop()
+    coro = asyncio.start_server(handle_message, '127.0.0.1', 8000, loop=loop)
+    server = loop.run_until_complete(coro)
+    print('Serving on {}'.format(server.sockets[0].getsockname()))
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    server.close()
+    loop.run_until_complete(server.wait_closed())
+    loop.close()
 
 
 if __name__ == '__main__':
