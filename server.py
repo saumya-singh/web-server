@@ -143,12 +143,12 @@ def header_parser(request, header_stream):
     header = {}
     header_list = header_stream.split("\r\n")
     request["method"], request["path"], request["http_version"] = \
-                                    (header_list[0].split(" "))
+                                    (header_list[0]).split(" ")
     if "?" in request["path"]:
         request["path"], request["content"] = get_query_content(request)
     header_list.pop(0)
     for one_header in header_list:
-        key, value = (one_header).split(": ")
+        key, value = one_header.split(": ")
         header[key] = value
     if "Cookie" in header:
         cookie_content = {}
@@ -171,7 +171,7 @@ async def handle_message(reader, writer):
     request = header_parser(request, header_stream)
     if "Content-Length" in request["header"]:
         con_len = request["header"]["Content-Length"]
-        body_stream = await reader.readexactly(con_len)
+        body_stream = await reader.readexactly(int(con_len))
         print("++++++++++", body_stream.decode(), "++++++++++++")
         request["body"] = body_stream.decode()
     pprint.pprint(request)
