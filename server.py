@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+'''simple local HTTP server'''
 
 import mimetypes
 import asyncio
@@ -7,10 +8,9 @@ import json
 import re
 import os
 
-ROUTES = {"GET" : {},
-          "POST" : {},
-          "OPTIONS" : {},
-         }
+
+METHODS = ("GET", "POST", "OPTIONS")
+ROUTES = {method: {} for method in METHODS}
 
 def build_regex_path(path):
     pattern_obj = re.compile(r'(<\w+>)')
@@ -30,20 +30,17 @@ def make_response(response):
     res_bytes = res.encode()
     if "content" in response:
         res_bytes += response["content"]
-    response = res_bytes
-    return response
+    return res_bytes
 
 def ok_200_add_headers(response):
     response["status_line"] = "HTTP/1.1 200 OK"
     if response["content"]:
         response["Content-Length"] = str(len(response["content"]))
-    response = make_response(response)
-    return response
+    return make_response(response)
 
 def err_404_handler(request, response, next_):
     response["status_line"] = "HTTP/1.1 404 Not Found"
-    response = make_response(response)
-    return response
+    return make_response(response)
 
 def route_handler(request, response, next_):
     flag = 0
@@ -62,7 +59,6 @@ def route_handler(request, response, next_):
     response["content"] = res_body.encode()
     return ok_200_add_headers(response)
 
-
 def static_file_handler(request, response, next_):
     print("\n\n{}\n\n".format("!"*33))
     if request["method"] == "GET":
@@ -78,32 +74,27 @@ def static_file_handler(request, response, next_):
         return ok_200_add_headers(response)
     return next_(request, response, next_)
 
-
 def body_handler(request, response, next_):
-    if "Content-Type" in request["header"] and "application/json" \
-                                        in request["header"]["Content-Type"]:
+    content_type = request["header"].get("Content-Type", False)
+    if content_type:
         request["body"] = json.loads(request["body"])
     return next_(request, response, next_)
-
-
-handler_list = [body_handler, static_file_handler, route_handler, err_404_handler]
 
 def create_next():
     counter = 0
     def next_func(request, response, next_):
         nonlocal counter
-        func = handler_list[counter]
+        func = HANDLERS[counter]
         counter += 1
         return func(request, response, next_)
     return next_func
-
 
 def request_handler(request):
     if "query_content" in request:
         no = request["query_content"]["n"]
         l = int(no)^500
         j = 0
-        print("****************stuck in loop, ****************")
+        print("{0} stuck in loop {0}".format("*"*16))
         for i in range(l):
             j = j + i
     response = {}
@@ -129,21 +120,37 @@ def header_parser(header_stream):
     request["header"] = header
     return request
 
+def body_parser(body_stream, content_type):
+    # application/x-www-form-urlencoded , multipart/form-data, application/json
+    if content_type == "application/json":
+        parsed_body = json.loads(body_stream)
+    elif content_type == "application/x-www-form-urlencoded":
+        parsed_body = query_parser(body_stream)
+    elif content_type == "multipart/form-data":
+        pass
+    return parsed_body
+
+
+def query_parser(query_string):
+    query_str = query_string.split("&")
+    query_dict = dict([query.split("=") for query in query_str])
+    return query_dict
 
 async def handle_message(reader, writer):
     # addr = writer.get_extra_info('peername')
     # print("Received from %r" % (addr))
     print("entered handle_message")
     header = await reader.readuntil(b'\r\n\r\n')
-    # header = reader.readuntil(b'\r\n\r\n')
     header_stream = header.decode().split("\r\n\r\n")[0]
-    print("==========", header_stream, "===========")
+    print("\n{0}\n\n{1}\n\n{0}\n".format("="*50, header_stream))
     request = header_parser(header_stream)
-    if "Content-Length" in request["header"]:
-        con_len = request["header"]["Content-Length"]
-        body_stream = await reader.readexactly(int(con_len))
-        print("++++++++++", body_stream.decode(), "++++++++++++")
+    content_length = request["header"].get("Content-Length", False)
+    content_type = request["header"].get("Content-Type", False)
+    if content_length or content_type:
+        body_stream = await reader.readexactly(int(content_length))
+        print("{0} {1} {0}".format("+"*15, body_stream.decode()))
         request["body"] = body_stream.decode()
+        # request["body"] = body_parser(body_stream.decode(), content_type)
     pprint.pprint(request)
     response = request_handler(request)
     writer.write(response)
@@ -159,13 +166,15 @@ def execute_server(host='127.0.0.1', port=8000):
     server = loop.run_until_complete(coro)
     print('Serving on {}'.format(server.sockets[0].getsockname()))
     try:
-        loop.run_forever()
+        loop.run_forever() # ???
     except KeyboardInterrupt:
-        pass
+        print("\nShutting down the server...\n")
     server.close()
     loop.run_until_complete(server.wait_closed())
     loop.close()
 
+
+HANDLERS = [body_handler, static_file_handler, route_handler, err_404_handler]
 
 if __name__ == '__main__':
     execute_server()
