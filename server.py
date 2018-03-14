@@ -121,7 +121,7 @@ def create_next():
     return next_func
 
 
-async def request_handler(request):
+def request_handler(request):
     if "query_content" in request:
         no = request["query_content"]["n"]
         l = int(no)^500
@@ -129,6 +129,7 @@ async def request_handler(request):
         print("****************stuck in loop, ****************")
         for i in range(l):
             j = j + i
+        print("------calculation done------------")
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
@@ -170,10 +171,8 @@ def header_parser(request, header_stream):
 
 async def handle_message(reader, writer):
     addr = writer.get_extra_info('peername')
-    # print("Received from %r" % (addr))
     print("entered handle_message")
-    # header = await reader.readuntil(b'\r\n\r\n')
-    header = reader.readuntil(b'\r\n\r\n')
+    header = await reader.readuntil(b'\r\n\r\n')
     header_stream = header.decode().split("\r\n\r\n")[0]
     print("==========", header_stream, "===========")
     request = {}
@@ -184,7 +183,9 @@ async def handle_message(reader, writer):
         print("++++++++++", body_stream.decode(), "++++++++++++")
         request["body"] = body_stream.decode()
     pprint.pprint(request)
-    response = await request_handler(request)
+
+    response = request_handler(request)
+    print("got response")
     writer.write(response)
     await writer.drain()
     print("Close the client socket")
