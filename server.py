@@ -98,7 +98,6 @@ def route_handler(request, response, next_):
 
 
 def static_file_handler(request, response, next_):
-    print("\n\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n")
     if request["method"] == "GET":
         try:
             if request["path"][-1] == "/":
@@ -176,21 +175,18 @@ def header_parser(request, header_stream):
 
 
 async def handle_message(reader, writer):
-    addr = writer.get_extra_info('peername')
-    print("entered handle_message")
+    # addr = writer.get_extra_info('peername')
     header = await reader.readuntil(b'\r\n\r\n')
     header_stream = header.decode().split("\r\n\r\n")[0]
-    print("==========", header_stream, "===========")
     request = {}
     request = header_parser(request, header_stream)
     if "Content-Length" in request["header"]:
         con_len = request["header"]["Content-Length"]
         body_stream = await reader.readexactly(int(con_len))
-        print("++++++++++", body_stream.decode(), "++++++++++++")
         request["body"] = body_stream.decode()
     pprint.pprint(request)
     response = request_handler(request)
-    print("^^^^^^^^^^^^^")
+    print("===========================")
     print(response)
     writer.write(response)
     await writer.drain()
