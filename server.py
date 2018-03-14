@@ -1,7 +1,7 @@
 import socket
 import asyncio
 import pprint
-import json, re
+import json, re, time
 
 
 CONTENT_TYPE = {
@@ -121,7 +121,14 @@ def create_next():
     return next_func
 
 
-def request_handler(request):
+async def request_handler(request):
+    if "query_content" in request:
+        no = request["query_content"]["n"]
+        l = int(no)^500
+        j = 0
+        print("****************stuck in loop, ****************")
+        for i in range(l):
+            j = j + i
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
@@ -145,7 +152,7 @@ def header_parser(request, header_stream):
     request["method"], request["path"], request["http_version"] = \
                                     (header_list[0]).split(" ")
     if "?" in request["path"]:
-        request["path"], request["content"] = get_query_content(request)
+        request["path"], request["query_content"] = get_query_content(request)
     header_list.pop(0)
     for one_header in header_list:
         key, value = one_header.split(": ")
@@ -164,7 +171,9 @@ def header_parser(request, header_stream):
 async def handle_message(reader, writer):
     addr = writer.get_extra_info('peername')
     # print("Received from %r" % (addr))
-    header = await reader.readuntil(b'\r\n\r\n')
+    print("entered handle_message")
+    # header = await reader.readuntil(b'\r\n\r\n')
+    header = reader.readuntil(b'\r\n\r\n')
     header_stream = header.decode().split("\r\n\r\n")[0]
     print("==========", header_stream, "===========")
     request = {}
@@ -175,7 +184,7 @@ async def handle_message(reader, writer):
         print("++++++++++", body_stream.decode(), "++++++++++++")
         request["body"] = body_stream.decode()
     pprint.pprint(request)
-    response = request_handler(request)
+    response = await request_handler(request)
     writer.write(response)
     await writer.drain()
     print("Close the client socket")
@@ -183,6 +192,7 @@ async def handle_message(reader, writer):
 
 
 def execute_server():
+    print("entered execute_server")
     loop = asyncio.get_event_loop()
     coro = asyncio.start_server(handle_message, '127.0.0.1', 8000, loop=loop)
     server = loop.run_until_complete(coro)
