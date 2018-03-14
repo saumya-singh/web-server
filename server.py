@@ -1,21 +1,12 @@
+import mimetypes
+import requests
 import asyncio
 import pprint
-import json, re
+import json
+import re
 
 
-CONTENT_TYPE = {
-    "html": "text/html",
-    "css": "text/css",
-    "js": "application/javascript",
-    "jpeg": "image/jpeg",
-    "ico": "image/x-icon",
-    "text": "text/plain",
-    "json": "application/json",
-    "png": "image/png",
-    "gif": "image/gif",
-    "xml": "application/xml",
-    "pdf": "application/pdf"
-    }
+CONTENT_TYPE =  mimetypes.types_map
 
 
 ROUTES = {
@@ -24,12 +15,26 @@ ROUTES = {
     }
 
 
+def make_status_phrase(phrase):
+    words = phrase.split("_")
+    status_phrase = ""
+    for word in words:
+        status_phrase += word[0].upper() + word[1:] + " "
+    return status_phrase.strip()
+
+
 def res_headers(response, headers):
-    response["headers"] = headers
+    response["headers"].update(headers)
 
 
 def res_status(response, status):
-    response["status"] = status
+    try:
+        phrase = requests.status_codes._codes[status]
+        status_phrase = make_status_phrase(phrase[0])
+    except KeyError:
+        print("Not a VALID STATUS")
+        raise ValueError("not a valid status code")
+    response["status"] = str(status) + " " + status_phrase
 
 
 def build_regex_path(path):
@@ -44,14 +49,12 @@ def add_route(method, path, function):
 
 
 def make_response(response):
-    res = ""
-    res_bytes = b""
-    res += response["status_line"] + "\r\n"
-    for key, value in response.items():
-        if key not in ["status_line", "content"]:
+    res = response["protocol_version"] + " " + response["status"] + "\r\n"
+    if response["headers"]:
+        for key, value in response["headers"].items():
             res += "{0}: {1}\r\n".format(key, value)
     res += "\r\n"
-    res_bytes += res.encode()
+    res_bytes = res.encode()
     if "content" in response:
         res_bytes += response["content"]
     response = res_bytes
@@ -59,17 +62,17 @@ def make_response(response):
 
 
 def ok_200_add_headers(response):
-    response["header"] = "HTTP/1.1"
+    response["protocol_version"] = "HTTP/1.1"
     if "status" not in response:
         response["status"] = "200 OK"
     if response["content"]:
-        response["Content-Length"] = str(len(response["content"]))
+        response["headers"].update({"Content-Length": str(len(response["content"]))})
     response = make_response(response)
     return response
 
 
 def err_404_handler(request, response, next_):
-    response["header"] = "HTTP/1.1"
+    response["protocol_version"] = "HTTP/1.1"
     if "status" not in response:
         response["status"] = "404 Not Found"
     response = make_response(response)
@@ -104,8 +107,8 @@ def static_file_handler(request, response, next_):
                 res_body = file_obj.read()
         except OSError:
             return next_(request, response, next_)
-        content_type = request["path"].split(".")[1]
-        response["Content-Type"] = CONTENT_TYPE[content_type]
+        content_type = "." + request["path"].split(".")[1]
+        response["headers"].update({"Content-Type": CONTENT_TYPE[content_type]})
         response["content"] = res_body
         return ok_200_add_headers(response)
     else:
@@ -133,15 +136,7 @@ def create_next():
 
 
 def request_handler(request):
-    # if "query_content" in request:
-    #     no = request["query_content"]["n"]
-    #     l = int(no)^500
-    #     j = 0
-    #     print("****************stuck in loop, ****************")
-    #     for i in range(l):
-    #         j = j + i
-    #     print("------calculation done------------")
-    response = {}
+    response = {"headers": {}}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
     return next_(request, response, next_)
@@ -195,7 +190,8 @@ async def handle_message(reader, writer):
         request["body"] = body_stream.decode()
     pprint.pprint(request)
     response = request_handler(request)
-    print("got response")
+    print("^^^^^^^^^^^^^")
+    print(response)
     writer.write(response)
     await writer.drain()
     print("Close the client socket")
