@@ -1,7 +1,6 @@
-import socket
 import asyncio
 import pprint
-import json, re, time
+import json, re
 
 
 CONTENT_TYPE = {
@@ -23,6 +22,14 @@ ROUTES = {
     "GET" : {},
     "POST" : {}
     }
+
+
+def res_headers(response, headers):
+    response["headers"] = headers
+
+
+def res_status(response, status):
+    response["status"] = status
 
 
 def build_regex_path(path):
@@ -52,7 +59,9 @@ def make_response(response):
 
 
 def ok_200_add_headers(response):
-    response["status_line"] = "HTTP/1.1 200 OK"
+    response["header"] = "HTTP/1.1"
+    if "status" not in response:
+        response["status"] = "200 OK"
     if response["content"]:
         response["Content-Length"] = str(len(response["content"]))
     response = make_response(response)
@@ -60,7 +69,9 @@ def ok_200_add_headers(response):
 
 
 def err_404_handler(request, response, next_):
-    response["status_line"] = "HTTP/1.1 404 Not Found"
+    response["header"] = "HTTP/1.1"
+    if "status" not in response:
+        response["status"] = "404 Not Found"
     response = make_response(response)
     return response
 
@@ -122,14 +133,14 @@ def create_next():
 
 
 def request_handler(request):
-    if "query_content" in request:
-        no = request["query_content"]["n"]
-        l = int(no)^500
-        j = 0
-        print("****************stuck in loop, ****************")
-        for i in range(l):
-            j = j + i
-        print("------calculation done------------")
+    # if "query_content" in request:
+    #     no = request["query_content"]["n"]
+    #     l = int(no)^500
+    #     j = 0
+    #     print("****************stuck in loop, ****************")
+    #     for i in range(l):
+    #         j = j + i
+    #     print("------calculation done------------")
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
@@ -183,7 +194,6 @@ async def handle_message(reader, writer):
         print("++++++++++", body_stream.decode(), "++++++++++++")
         request["body"] = body_stream.decode()
     pprint.pprint(request)
-
     response = request_handler(request)
     print("got response")
     writer.write(response)
