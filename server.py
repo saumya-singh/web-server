@@ -12,6 +12,29 @@ import os
 METHODS = ("GET", "POST", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
+
+def make_status_phrase(phrase):
+    words = phrase.split("_")
+    status_phrase = ""
+    for word in words:
+        status_phrase += word[0].upper() + word[1:] + " "
+    return status_phrase.strip()
+
+
+def res_header(response, header):
+    response["header"].update(header)
+
+
+def res_status(response, status):
+    try:
+        phrase = requests.status_codes._codes[status]
+        status_phrase = make_status_phrase(phrase[0])
+    except KeyError:
+        print("Not a VALID STATUS")
+        raise ValueError("not a valid status code")
+    response["status"] = str(status) + " " + status_phrase
+    
+
 def build_regex_path(path):
     pattern_obj = re.compile(r'(<\w+>)')
     regex = pattern_obj.sub(r'(?P\1.+)', path)
