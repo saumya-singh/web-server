@@ -6,8 +6,9 @@ def render_form(request, response, id):
     path = './static/form.html'
     with open(path, 'r') as file_obj:
         res_content = file_obj.read()
-    server.res_status(response, 456)
-    # server.res_headers(response, headers)
+    server.res_status(response, 302)
+    # header = {}
+    # server.res_header(request, response, header)
     print(response)
     return res_content
 
