@@ -10,10 +10,8 @@ import re
 CONTENT_TYPE =  mimetypes.types_map
 
 
-ROUTES = {
-    "GET" : {},
-    "POST" : {}
-    }
+METHODS = ("GET", "POST", "PUT", "DELETE")
+ROUTES = {method : {} for method in METHODS}
 
 
 def make_status_phrase(phrase):
@@ -49,7 +47,7 @@ def add_route(method, path, function):
     ROUTES[method][regex_path] = function
 
 
-def redirect(path):
+def redirect(request, response, path):
     response["status"] = "302 Found"
     response["Location"] = path
     res = response_handler(request, response)
@@ -70,18 +68,11 @@ def make_response(response):
 
 
 def response_handler(request, response):
-    request["header"] = req_header
-    response["header"] = res_header
-    res_header["Date"] = formatdate(timeval=None, localtime=False, usegmt=True)
+    req_header = request["header"]
+    res_header = response["header"]
+    res_header["Date"] = formatdate(usegmt=True)
     res_header["Connection"] = "close"
     # response["server"] = ""
-    if response["content"]:
-        if "Accept-Encoding" in req_header:
-            res_header["Content-Encoding"] = req_header["Accept-Encoding"]
-        if "Accept-Language" in  req_header:
-            res_header["Content-Language"] = req_header["Accept-Language"]
-        if "Accept" in req_header:
-            res_header["Content-Type"] = req_header["Accept"]
     res = make_response(response)
     return res
 
@@ -95,7 +86,7 @@ def ok_200_handler(request, response):
     return response
 
 
-def err_404_handler(request, response, next_):
+def err_404_handler(request, response):
     if "status" not in response:
         response["status"] = "404 Not Found"
     response = response_handler(request, response)
@@ -108,6 +99,8 @@ def route_handler(request, response, next_):
         routes = ROUTES["GET"]
     elif request["method"] == "POST":
         routes = ROUTES["POST"]
+    elif request["method"] == "PUT":
+        routes = ROUTES["PUT"]
     for regex, function in routes.items():
         answer = re.match(regex, request["path"])
         if answer:
@@ -115,7 +108,7 @@ def route_handler(request, response, next_):
             flag = 1
             break
     if flag == 0:
-        return next_(request, response, next_)
+        return next_(request, response)
     response["content"] = res_body.encode()
     return ok_200_handler(request, response)
 
