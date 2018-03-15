@@ -14,7 +14,7 @@ def session_middleware(request, response):
     if sid:
         return request, response
     cookie = str(uuid4())
-    response["Set-Cookie"] = "sid={}".format(cookie)
+    response["header"]["Set-Cookie"] = "sid={}".format(cookie)
     SESSIONS[cookie] = {}
     return request, response
 
@@ -43,7 +43,7 @@ def logger(request, response):
     client_ip = request["header"]["Host"].split(":")[0]
     log_items = ("Date", "method", "path", "status")
     date, method, path, status = [response[i] for i in log_items]
-    log = "{} - - [{}] \"{} {}\" {}\n".format(client_ip, date, method, path, status)
+    log = "{0} - - [{1}] \"{2} {3}\" {4}\n".format(client_ip, date, method, path, status)
     save_logs(log)
     return log, request, response
 

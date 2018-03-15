@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 '''simple local HTTP server'''
 
+# from urllib.parse import unquote
 import mimetypes
 import asyncio
 import pprint
 import json
 import re
 import os
+# import logging
 
 
 METHODS = ("GET", "POST", "OPTIONS")
@@ -90,13 +92,6 @@ def create_next():
     return next_func
 
 def request_handler(request):
-    if "query_content" in request:
-        no = request["query_content"]["n"]
-        l = int(no)^500
-        j = 0
-        print("{0} stuck in loop {0}".format("*"*16))
-        for i in range(l):
-            j = j + i
     response = {}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
@@ -120,15 +115,35 @@ def header_parser(header_stream):
     request["header"] = header
     return request
 
-def body_parser(body_stream, content_type):
+def body_parser(request):
+    content_type = request["header"]["Content-Type"]
+    body_stream = request["body"]
     # application/x-www-form-urlencoded , multipart/form-data, application/json
     if content_type == "application/json":
-        parsed_body = json.loads(body_stream)
+        request["body"] = json.loads(body_stream)
     elif content_type == "application/x-www-form-urlencoded":
-        parsed_body = query_parser(body_stream)
-    elif content_type == "multipart/form-data":
-        pass
-    return parsed_body
+        request["body"] = query_parser(body_stream)
+    elif "multipart/form-data" in content_type:
+        request = form_parser(request)
+    return request
+
+def form_parser(request):
+    content_type = request["header"]["Content-Type"]
+    body_stream = request["body"]
+
+    boundary_value = content_type.split(";")[-1].split("=")[-1]
+    boundary = "--{}".format(boundary_value).encode()
+    multiform_data = [i.split(b"\r\n\r\n", 1) for i in body_stream.split(boundary)]
+    sub_hdrs = [form[0].split(b"\r\n") for form in multiform_data]
+    hdr_params = [hdr.split(b":")[-1] for hdr in sub_hdrs if b":" in hdr]
+    form_dict = {}
+    for index, subhdr_param in enumerate(hdr_params):
+        params = [param.split(b";") for param in subhdr_param]
+        subform = dict([param.split("=") for param in params if b"=" in param])
+        subform[b"body"] = multiform_data[index][1]
+        form_dict[subform[b"name"]] = subform
+    request["form"] = form_dict
+    return request
 
 
 def query_parser(query_string):
@@ -159,9 +174,11 @@ async def handle_message(reader, writer):
     writer.close()
 
 
-def execute_server(host='127.0.0.1', port=8000):
+def execute_server(host='0.0.0.0', port=8000):
+# def execute_server(host='127.0.0.1', port=8000):
     print("entered execute_server")
     loop = asyncio.get_event_loop()
+    # loop.set_debug()
     coro = asyncio.start_server(handle_message, host, port, loop=loop)
     server = loop.run_until_complete(coro)
     print('Serving on {}'.format(server.sockets[0].getsockname()))
