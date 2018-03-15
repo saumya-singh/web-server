@@ -5,15 +5,21 @@ import json
 import server
 
 def render_form(request, response, id):
+<<<<<<< HEAD
     print("$$$$$$$$$$$$", id)
     path = 'static/form.html'
+=======
+    path = './static/form.html'
+>>>>>>> 70f71bb482444c3537726f08716a09b2f9fc5862
     with open(path, 'r') as file_obj:
-        content = file_obj.read()
-    return content
+        res_content = file_obj.read()
+    server.res_status(response, 456)
+    # server.res_headers(response, headers)
+    print(response)
+    return res_content
 
 def form_data(request, response):
     print(server.ROUTES)
-    print("???????", request)
     content = request["body"]
     content["status"] = "Done!! \nYour name has been submitted"
     res_content = json.dumps(content)
