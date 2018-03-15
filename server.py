@@ -1,3 +1,4 @@
+from email.utils import formatdate
 import mimetypes
 import requests
 import asyncio
@@ -23,8 +24,8 @@ def make_status_phrase(phrase):
     return status_phrase.strip()
 
 
-def res_headers(response, headers):
-    response["headers"].update(headers)
+def res_header(response, header):
+    response["header"].update(header)
 
 
 def res_status(response, status):
@@ -48,10 +49,17 @@ def add_route(method, path, function):
     ROUTES[method][regex_path] = function
 
 
+def redirect(path):
+    response["status"] = "302 Found"
+    response["Location"] = path
+    res = response_handler(request, response)
+    return res
+
+
 def make_response(response):
     res = response["protocol_version"] + " " + response["status"] + "\r\n"
-    if response["headers"]:
-        for key, value in response["headers"].items():
+    if response["header"]:
+        for key, value in response["header"].items():
             res += "{0}: {1}\r\n".format(key, value)
     res += "\r\n"
     res_bytes = res.encode()
@@ -61,21 +69,36 @@ def make_response(response):
     return response
 
 
-def ok_200_add_headers(response):
-    response["protocol_version"] = "HTTP/1.1"
+def response_handler(request, response):
+    request["header"] = req_header
+    response["header"] = res_header
+    res_header["Date"] = formatdate(timeval=None, localtime=False, usegmt=True)
+    res_header["Connection"] = "close"
+    # response["server"] = ""
+    if response["content"]:
+        if "Accept-Encoding" in req_header:
+            res_header["Content-Encoding"] = req_header["Accept-Encoding"]
+        if "Accept-Language" in  req_header:
+            res_header["Content-Language"] = req_header["Accept-Language"]
+        if "Accept" in req_header:
+            res_header["Content-Type"] = req_header["Accept"]
+    res = make_response(response)
+    return res
+
+
+def ok_200_handler(request, response):
     if "status" not in response:
         response["status"] = "200 OK"
     if response["content"]:
-        response["headers"].update({"Content-Length": str(len(response["content"]))})
-    response = make_response(response)
+        response["header"]["Content-Length"] = str(len(response["content"]))
+    response = response_handler(request, response)
     return response
 
 
 def err_404_handler(request, response, next_):
-    response["protocol_version"] = "HTTP/1.1"
     if "status" not in response:
         response["status"] = "404 Not Found"
-    response = make_response(response)
+    response = response_handler(request, response)
     return response
 
 
@@ -94,7 +117,7 @@ def route_handler(request, response, next_):
     if flag == 0:
         return next_(request, response, next_)
     response["content"] = res_body.encode()
-    return ok_200_add_headers(response)
+    return ok_200_handler(request, response)
 
 
 def static_file_handler(request, response, next_):
@@ -107,9 +130,9 @@ def static_file_handler(request, response, next_):
         except OSError:
             return next_(request, response, next_)
         content_type = "." + request["path"].split(".")[1]
-        response["headers"].update({"Content-Type": CONTENT_TYPE[content_type]})
+        response["header"].update({"Content-Type": CONTENT_TYPE[content_type]})
         response["content"] = res_body
-        return ok_200_add_headers(response)
+        return ok_200_handler(request, response)
     else:
         return next_(request, response, next_)
 
@@ -135,7 +158,7 @@ def create_next():
 
 
 def request_handler(request):
-    response = {"headers": {}}
+    response = {"protocol_version" : "HTTP/1.1", "header": {}}
     # response = "\nHTTP/1.1 200 OK\n\nHello, World!\n"
     next_ = create_next()
     return next_(request, response, next_)
