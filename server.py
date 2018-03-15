@@ -5,42 +5,17 @@ import asyncio
 import pprint
 import json
 import re
+import os
+# import logging
 
 
-CONTENT_TYPE =  mimetypes.types_map
-
-
-METHODS = ("GET", "POST", "PUT", "DELETE")
-ROUTES = {method : {} for method in METHODS}
-
-
-def make_status_phrase(phrase):
-    words = phrase.split("_")
-    status_phrase = ""
-    for word in words:
-        status_phrase += word[0].upper() + word[1:] + " "
-    return status_phrase.strip()
-
-
-def res_header(response, header):
-    response["header"].update(header)
-
-
-def res_status(response, status):
-    try:
-        phrase = requests.status_codes._codes[status]
-        status_phrase = make_status_phrase(phrase[0])
-    except KeyError:
-        print("Not a VALID STATUS")
-        raise ValueError("not a valid status code")
-    response["status"] = str(status) + " " + status_phrase
-
+METHODS = ("GET", "POST", "OPTIONS")
+ROUTES = {method: {} for method in METHODS}
 
 def build_regex_path(path):
     pattern_obj = re.compile(r'(<\w+>)')
     regex = pattern_obj.sub(r'(?P\1.+)', path)
     return '^{}$'.format(regex)
-
 
 def add_route(method, path, function):
     regex_path = build_regex_path(path)
@@ -63,9 +38,7 @@ def make_response(response):
     res_bytes = res.encode()
     if "content" in response:
         res_bytes += response["content"]
-    response = res_bytes
-    return response
-
+    return res_bytes
 
 def response_handler(request, response):
     req_header = request["header"]
@@ -112,43 +85,34 @@ def route_handler(request, response, next_):
     response["content"] = res_body.encode()
     return ok_200_handler(request, response)
 
-
 def static_file_handler(request, response, next_):
     if request["method"] == "GET":
-        try:
-            if request["path"][-1] == "/":
-                request["path"] += "index.html"
-            with open("./static" + request["path"], "rb") as file_obj:
-                res_body = file_obj.read()
-        except OSError:
+        if request["path"][-1] == "/":
+            request["path"] += "index.html"
+        filename = "static{}".format(request["path"])
+        if not os.path.isfile(filename):
             return next_(request, response, next_)
-        content_type = "." + request["path"].split(".")[1]
-        response["header"].update({"Content-Type": CONTENT_TYPE[content_type]})
+        response["Content-Type"] = mimetypes.guess_type(request["path"])[0]
+        with open(filename, "rb") as file_obj:
+            res_body = file_obj.read()
         response["content"] = res_body
-        return ok_200_handler(request, response)
-    else:
-        return next_(request, response, next_)
-
-
-def body_handler(request, response, next_):
-    if "Content-Type" in request["header"] and "application/json" \
-                                        in request["header"]["Content-Type"]:
-        request["body"] = json.loads(request["body"])
+        return ok_200_add_headers(response)
     return next_(request, response, next_)
 
-
-handler_list = [body_handler, static_file_handler, route_handler,\
-                                                    err_404_handler]
+def body_handler(request, response, next_):
+    content_type = request["header"].get("Content-Type", False)
+    if content_type:
+        request["body"] = json.loads(request["body"])
+    return next_(request, response, next_)
 
 def create_next():
     counter = 0
     def next_func(request, response, next_):
         nonlocal counter
-        func = handler_list[counter]
+        func = HANDLERS[counter]
         counter += 1
         return func(request, response, next_)
     return next_func
-
 
 def request_handler(request):
     response = {"protocol_version" : "HTTP/1.1", "header": {}}
@@ -156,50 +120,70 @@ def request_handler(request):
     next_ = create_next()
     return next_(request, response, next_)
 
-
 def get_query_content(request):
-    content = {}
     path, query_params = request["path"].split("?")
-    request["path"] = path
-    query_list = query_params.split("&")
-    for each_query in query_list:
-        key, val = each_query.split("=")
-        content[key] = val
-    return (request["path"], content)
+    query_content = dict([query.split("=") for query in query_params.split("&")])
+    return (path, query_content)
 
+def header_parser(header_stream):
+    req_line, *header_list = header_stream.split("\r\n")
+    request = dict(zip(["method", "path", "http_version"], req_line.split()))
 
-def header_parser(request, header_stream):
-    header = {}
-    header_list = header_stream.split("\r\n")
-    request["method"], request["path"], request["http_version"] = \
-                                    (header_list[0]).split(" ")
     if "?" in request["path"]:
         request["path"], request["query_content"] = get_query_content(request)
-    header_list.pop(0)
-    for one_header in header_list:
-        key, value = one_header.split(": ")
-        header[key] = value
+
+    header = dict([hdr.split(": ") for hdr in header_list])
     if "Cookie" in header:
-        cookie_content = {}
-        cookies = header["Cookie"].split(";")
-        for each_cookie in cookies:
-            key, val = each_cookie.split("=")
-            cookie_content[key] = val
-        header["Cookie"] = cookie_content
+        header["Cookie"] = dict([cookie.split("=") for cookie in header["Cookie"].split(";")])
     request["header"] = header
     return request
 
+def body_parser(request):
+    content_type = request["header"]["Content-Type"]
+    body_stream = request["body"]
+    # application/x-www-form-urlencoded , multipart/form-data, application/json
+    if content_type == "application/json":
+        request["body"] = json.loads(body_stream)
+    elif content_type == "application/x-www-form-urlencoded":
+        request["body"] = query_parser(body_stream)
+    elif "multipart/form-data" in content_type:
+        request = form_parser(request)
+    return request
+
+def form_parser(request):
+    content_type = request["header"]["Content-Type"]
+    body_stream = request["body"]
+
+    boundary_value = content_type.split(";")[-1].split("=")[-1]
+    boundary = "--{}".format(boundary_value).encode()
+    multiform_data = [i.split(b"\r\n\r\n", 1) for i in body_stream.split(boundary)]
+    sub_hdrs = [form[0].split(b"\r\n") for form in multiform_data]
+    hdr_params = [hdr.split(b":")[-1] for hdr in sub_hdrs if b":" in hdr]
+    form_dict = {}
+    for index, subhdr_param in enumerate(hdr_params):
+        params = [param.split(b";") for param in subhdr_param]
+        subform = dict([param.split("=") for param in params if b"=" in param])
+        subform[b"body"] = multiform_data[index][1]
+        form_dict[subform[b"name"]] = subform
+    request["form"] = form_dict
+    return request
+
+
+def query_parser(query_string):
+    query_str = query_string.split("&")
+    query_dict = dict([query.split("=") for query in query_str])
+    return query_dict
 
 async def handle_message(reader, writer):
     # addr = writer.get_extra_info('peername')
     header = await reader.readuntil(b'\r\n\r\n')
     header_stream = header.decode().split("\r\n\r\n")[0]
-    request = {}
-    request = header_parser(request, header_stream)
+    request = header_parser(header_stream)
     if "Content-Length" in request["header"]:
         con_len = request["header"]["Content-Length"]
         body_stream = await reader.readexactly(int(con_len))
         request["body"] = body_stream.decode()
+        # request["body"] = body_parser(body_stream.decode(), content_type)
     pprint.pprint(request)
     response = request_handler(request)
     print("===========================")
@@ -210,20 +194,24 @@ async def handle_message(reader, writer):
     writer.close()
 
 
-def execute_server():
+def execute_server(host='0.0.0.0', port=8000):
+# def execute_server(host='127.0.0.1', port=8000):
     print("entered execute_server")
     loop = asyncio.get_event_loop()
-    coro = asyncio.start_server(handle_message, '127.0.0.1', 8000, loop=loop)
+    # loop.set_debug()
+    coro = asyncio.start_server(handle_message, host, port, loop=loop)
     server = loop.run_until_complete(coro)
     print('Serving on {}'.format(server.sockets[0].getsockname()))
     try:
-        loop.run_forever()
+        loop.run_forever() # ???
     except KeyboardInterrupt:
-        pass
+        print("\nShutting down the server...\n")
     server.close()
     loop.run_until_complete(server.wait_closed())
     loop.close()
 
+
+HANDLERS = [body_handler, static_file_handler, route_handler, err_404_handler]
 
 if __name__ == '__main__':
     execute_server()
