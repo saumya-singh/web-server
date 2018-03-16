@@ -120,7 +120,7 @@ def static_file_handler(request, response, next_):
 def body_handler(request, response, next_):
     content_type = request["header"].get("Content-Type", False)
     if content_type:
-        request["body"] = json.loads(request["body"])
+        request["body"] = json.loads(request["body"].decode())
         # print(f'\n\n\n\n{request["body"]}\n\n\n')
     return next_(request, response, next_)
 
