@@ -15,6 +15,14 @@ METHODS = ("GET", "POST", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
 
+def make_status_phrase(phrase):
+    words = phrase.split("_")
+    status_phrase = ""
+    for word in words:
+        status_phrase += word[0] + word[1:].lower() + " "
+    return status_phrase.strip()
+
+
 def res_header(response, header):
     response["header"].update(header)
 
@@ -23,7 +31,8 @@ def res_status(response, status):
     status_dict = HTTPStatus.__dict__['_value2member_map_']
     status = status_dict.get(status, False)
     if status:
-        response["status"] = "{} {}".format(status.name, status.value)
+        status_phrase = make_status_phrase(status.name)
+        response["status"] = "{} {}".format(status.value, status_phrase)
     else:
         raise ValueError
 
@@ -37,6 +46,7 @@ def add_route(method, path, function):
     ROUTES[method][regex_path] = function
 
 def redirect(request, response, path):
+    print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
     response["status"] = "302 Found"
     response["Location"] = path
     res = response_handler(request, response)
@@ -108,7 +118,7 @@ def body_handler(request, response, next_):
     content_type = request["header"].get("Content-Type", False)
     if content_type:
         request["body"] = json.loads(request["body"])
-        print(f'\n\n\n\n{request["body"]}\n\n\n')
+        # print(f'\n\n\n\n{request["body"]}\n\n\n')
     return next_(request, response, next_)
 
 def create_next():
