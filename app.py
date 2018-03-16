@@ -6,14 +6,14 @@ import server
 
 
 def render_form(request, response, id):
-    return server.redirect(request, response, "http://www.example.com/", 307)
-    # path = 'static/form.html'
-    # with open(path, 'r') as file_obj:
-    #     res_content = file_obj.read()
-    # # server.res_status(response, 302)
-    # # header = {}
-    # # server.res_header(request, response, header)
-    # return res_content
+    # return server.redirect(request, response, "http://www.example.com/", 307)
+    path = 'static/form.html'
+    with open(path, 'r') as file_obj:
+        res_content = file_obj.read()
+    # server.res_status(response, 302)
+    # header = {}
+    # server.res_header(request, response, header)
+    return res_content
 
 
 def form_data(request, response):
