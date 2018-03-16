@@ -11,7 +11,7 @@ def render_form(request, response, id):
     with open(path, 'r') as file_obj:
         res_content = file_obj.read()
     # server.res_status(response, 302)
-    # header = {}
+    # header = {"Content-Type: "text/html"}
     # server.res_header(request, response, header)
     return res_content
 
