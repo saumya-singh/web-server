@@ -174,22 +174,35 @@ def body_parser(request):
         request = form_parser(request)
     return request
 
+def hdr2dict(subhdr):
+    subhdr = [i.strip() for i in subhdr.splitlines()]
+    subhdr_dict = {}
+    for item in subhdr:
+        if ":" in item:
+            item_dict = dict([item.split(":")])
+        elif ";" in item:
+            item_dict = dict([i.split("=") for i in item.split(";")])
+        elif "=" in item and ";" not in item:
+            item_dict = dict([item.split("=")])
+        else:
+            continue
+        subhdr_dict.update(item_dict)
+    if subhdr_dict:
+        return subhdr_dict
+
 
 def form_parser(request):
     content_type = request["header"]["Content-Type"]
-    body_stream = request["body"]
-
     boundary_value = content_type.split(";")[-1].split("=")[-1]
     boundary = "--{}".format(boundary_value).encode()
-    multiform_data = [i.split(b"\r\n\r\n", 1) for i in body_stream.split(boundary)]
-    sub_hdrs = [form[0].split(b"\r\n") for form in multiform_data]
-    hdr_params = [hdr.split(b":")[-1] for hdr in sub_hdrs if b":" in hdr]
+    multiform_data = request["body"].split(boundary)[1:-1]
+    sub_hdrs = [form[0].decode().split("form-data; ")[-1] for form in multiform_data]
+    sub_body = [form[1].strip() for form in multiform_data]
     form_dict = {}
-    for index, subhdr_param in enumerate(hdr_params):
-        params = [param.split(b";") for param in subhdr_param]
-        subform = dict([param.split("=") for param in params if b"=" in param])
-        subform[b"body"] = multiform_data[index][1]
-        form_dict[subform[b"name"]] = subform
+    for index, subhdr in enumerate(sub_hdrs):
+        name = hdr2dict(subhdr)["name"]
+        subhdr_dict = dict([("header", hdr2dict(subhdr)), (name, sub_body[index])])
+        form_dict.update(subhdr_dict)
     request["form"] = form_dict
     return request
 
