@@ -11,7 +11,7 @@ from http import HTTPStatus
 # import logging
 
 
-METHODS = ("GET", "POST", "PUT", "OPTIONS")
+METHODS = ("GET", "POST", "PUT", "DELETE", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
 
@@ -23,9 +23,9 @@ def res_status(response, status):
     status = status_dict.get(status, False)
     if status:
         response_phrase = status.name.replace("_", " ").title()
-        response["status"] = "{} {}".format(status.value, response_phrase)
+        response["status"] = "{0} {1}".format(status.value, response_phrase)
     else:
-        raise ValueError
+        raise ValueError("Invalid status code")
 
 
 def build_regex_path(path):
@@ -59,11 +59,11 @@ def make_response(response):
 
 
 def response_handler(request, response):
-    # req_header = request["header"]
-    # res_header = response["header"]
     response["header"]["Date"] = formatdate(usegmt=True)
-    # response["header"]["Connection"] = "close"
+    response["header"]["Connection"] = "close"
     # response["server"] = ""
+    if "content" not in response:
+        response["header"]["Content-Length"] = str(0)
     res = make_response(response)
     return res
 
@@ -71,7 +71,7 @@ def response_handler(request, response):
 def ok_200_handler(request, response):
     if "status" not in response:
         response["status"] = "200 OK"
-    if response["content"]:
+    if "content" in response:
         response["header"]["Content-Length"] = str(len(response["content"]))
     response = response_handler(request, response)
     return response
@@ -97,7 +97,8 @@ def route_handler(request, response, next_):
         return next_(request, response, next_)
     if isinstance(res_body, bytes): # for redirect
         return res_body
-    response["content"] = res_body.encode()
+    if res_body is not None:
+        response["content"] = res_body.encode()
     return ok_200_handler(request, response)
 
 
@@ -166,9 +167,9 @@ def body_parser(request):
     body_stream = request["body"]
     # application/x-www-form-urlencoded , multipart/form-data, application/json
     if content_type == "application/json":
-        request["body"] = json.loads(body_stream)
+        request["body"] = json.loads(body_stream.decode())
     elif content_type == "application/x-www-form-urlencoded":
-        request["body"] = query_parser(body_stream)
+        request["body"] = query_parser(body_stream.decode())
     elif "multipart/form-data" in content_type:
         request = form_parser(request)
     return request
@@ -206,8 +207,7 @@ async def handle_message(reader, writer):
     request = header_parser(header_stream)
     if "Content-Length" in request["header"]:
         con_len = request["header"]["Content-Length"]
-        body_stream = await reader.readexactly(int(con_len))
-        request["body"] = body_stream.decode()
+        request["body"] = await reader.readexactly(int(con_len))
         # request["body"] = body_parser(body_stream.decode(), content_type)
     pprint.pprint(request)
     response = request_handler(request)
