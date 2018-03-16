@@ -1,11 +1,13 @@
+#!/usr/bin/en python3
+
 from email.utils import formatdate
 import mimetypes
-import requests
 import asyncio
 import pprint
 import json
 import re
 import os
+from http import HTTPStatus
 # import logging
 
 
@@ -13,27 +15,17 @@ METHODS = ("GET", "POST", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
 
-def make_status_phrase(phrase):
-    words = phrase.split("_")
-    status_phrase = ""
-    for word in words:
-        status_phrase += word[0].upper() + word[1:] + " "
-    return status_phrase.strip()
-
-
 def res_header(response, header):
     response["header"].update(header)
 
 
 def res_status(response, status):
-    try:
-        phrase = requests.status_codes._codes[status]
-        status_phrase = make_status_phrase(phrase[0])
-    except KeyError:
-        print("Not a VALID STATUS")
-        raise ValueError("not a valid status code")
-    response["status"] = str(status) + " " + status_phrase
-    
+    status_dict = HTTPStatus.__dict__['_value2member_map_']
+    status = status_dict.get(status, False)
+    if status:
+        response["status"] = "{} {}".format(status.name, status.value)
+    else:
+        raise ValueError
 
 def build_regex_path(path):
     pattern_obj = re.compile(r'(<\w+>)')
@@ -44,13 +36,11 @@ def add_route(method, path, function):
     regex_path = build_regex_path(path)
     ROUTES[method][regex_path] = function
 
-
 def redirect(request, response, path):
     response["status"] = "302 Found"
     response["Location"] = path
     res = response_handler(request, response)
     return res
-
 
 def make_response(response):
     res = response["protocol_version"] + " " + response["status"] + "\r\n"
@@ -65,13 +55,12 @@ def make_response(response):
 
 def response_handler(request, response):
     req_header = request["header"]
-    res_header = response["header"]
-    res_header["Date"] = formatdate(usegmt=True)
-    res_header["Connection"] = "close"
+    # res_header = response["header"]
+    response["header"]["Date"] = formatdate(usegmt=True)
+    response["header"]["Connection"] = "close"
     # response["server"] = ""
     res = make_response(response)
     return res
-
 
 def ok_200_handler(request, response):
     if "status" not in response:
@@ -81,22 +70,15 @@ def ok_200_handler(request, response):
     response = response_handler(request, response)
     return response
 
-
-def err_404_handler(request, response):
+def err_404_handler(request, response, next_):
     if "status" not in response:
         response["status"] = "404 Not Found"
     response = response_handler(request, response)
     return response
 
-
 def route_handler(request, response, next_):
     flag = 0
-    if request["method"] == "GET":
-        routes = ROUTES["GET"]
-    elif request["method"] == "POST":
-        routes = ROUTES["POST"]
-    elif request["method"] == "PUT":
-        routes = ROUTES["PUT"]
+    routes = ROUTES[request["method"]]
     for regex, function in routes.items():
         answer = re.match(regex, request["path"])
         if answer:
@@ -104,7 +86,7 @@ def route_handler(request, response, next_):
             flag = 1
             break
     if flag == 0:
-        return next_(request, response)
+        return next_(request, response, next_)
     response["content"] = res_body.encode()
     return ok_200_handler(request, response)
 
@@ -119,13 +101,14 @@ def static_file_handler(request, response, next_):
         with open(filename, "rb") as file_obj:
             res_body = file_obj.read()
         response["content"] = res_body
-        return ok_200_add_headers(response)
+        return ok_200_handler(request, response)
     return next_(request, response, next_)
 
 def body_handler(request, response, next_):
     content_type = request["header"].get("Content-Type", False)
     if content_type:
         request["body"] = json.loads(request["body"])
+        print(f'\n\n\n\n{request["body"]}\n\n\n')
     return next_(request, response, next_)
 
 def create_next():
