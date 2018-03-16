@@ -18,12 +18,12 @@ ROUTES = {method: {} for method in METHODS}
 def res_header(response, header):
     response["header"].update(header)
 
-
 def res_status(response, status):
     status_dict = HTTPStatus.__dict__['_value2member_map_']
     status = status_dict.get(status, False)
     if status:
-        response["status"] = "{} {}".format(status.value, status.name)
+        response_phrase = status.name.replace("_", " ").title()
+        response["status"] = "{} {}".format(status.value, response_phrase)
     else:
         raise ValueError
 
@@ -59,7 +59,7 @@ def make_response(response):
 
 
 def response_handler(request, response):
-    req_header = request["header"]
+    # req_header = request["header"]
     # res_header = response["header"]
     response["header"]["Date"] = formatdate(usegmt=True)
     # response["header"]["Connection"] = "close"
@@ -211,7 +211,7 @@ async def handle_message(reader, writer):
         # request["body"] = body_parser(body_stream.decode(), content_type)
     pprint.pprint(request)
     response = request_handler(request)
-    print("="*30, response, "="*30)
+    print("="*30, "\n", response, "\n", "="*30)
     writer.write(response)
     await writer.drain()
     print("Close the client socket")
