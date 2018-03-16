@@ -1,3 +1,3 @@
-# Server
+# HTTP Server
 
-Written in Python3.6
+**Simple HTTP webserver build using python 3.5+**
