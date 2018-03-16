@@ -13,18 +13,6 @@ from http import HTTPStatus
 METHODS = ("GET", "POST", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
-<<<<<<< HEAD
-=======
-
-def make_status_phrase(phrase):
-    words = phrase.split("_")
-    status_phrase = ""
-    for word in words:
-        status_phrase += word[0] + word[1:].lower() + " "
-    return status_phrase.strip()
-
-
->>>>>>> 1b7ae98d1154827b128d0fcb6afd9aa44df3e793
 def res_header(response, header):
     response["header"].update(header)
 
@@ -32,8 +20,8 @@ def res_status(response, status):
     status_dict = HTTPStatus.__dict__['_value2member_map_']
     status = status_dict.get(status, False)
     if status:
-        status_phrase = make_status_phrase(status.name)
-        response["status"] = "{} {}".format(status.value, status_phrase)
+        response_phrase = status.name.replace("_", " ").title()
+        response["status"] = "{} {}".format(status.value, response_phrase)
     else:
         raise ValueError
 
