@@ -10,14 +10,11 @@ import os
 from http import HTTPStatus
 # import logging
 
-
 METHODS = ("GET", "POST", "OPTIONS")
 ROUTES = {method: {} for method in METHODS}
 
-
 def res_header(response, header):
     response["header"].update(header)
-
 
 def res_status(response, status):
     status_dict = HTTPStatus.__dict__['_value2member_map_']
@@ -54,7 +51,7 @@ def make_response(response):
     return res_bytes
 
 def response_handler(request, response):
-    req_header = request["header"]
+    # req_header = request["header"]
     # res_header = response["header"]
     response["header"]["Date"] = formatdate(usegmt=True)
     response["header"]["Connection"] = "close"
