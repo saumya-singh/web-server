@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-'''application running to test HTTP server'''
+"""application running to test HTTP server"""
 
 import json
 import server
 
 
 def render_form(request, response, id):
-    return server.redirect(request, response, "https://www.geekskool.com/", 307)
-    # path = 'static/form.html'
-    # with open(path, 'r') as file_obj:
-    #     res_content = file_obj.read()
-    # server.res_status(response, 302)
-    # # header = {"Content-Type: "text/html"}
-    # # server.res_header(response, header)
-    # return res_content
+    """Setting HTML file to the response content."""
+    # return server.redirect(request, response, "https://www.geekskool.com/", \
+    #                                                                      307)
+    path = 'static/form.html'
+    with open(path, 'r') as file_obj:
+        res_content = file_obj.read()
+    server.res_status(response, 302)
+    # header = {"Content-Type: "text/html"}
+    # server.res_header(response, header)
+    return res_content
 
 
 def form_data(request, response):
