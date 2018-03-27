@@ -31,7 +31,7 @@ class Session:
         if browser_cookies:
             sid = request["header"]["Cookie"].get("sid")
         if sid:
-            self.SESSION[sid] = content
+            self.SESSION[sid].update(content)
 
     def get(self, request, key):
         """Get session data from self.SESSION."""
