@@ -244,6 +244,7 @@ async def handle_message(reader, writer):
     """Parse the request."""
     # addr = writer.get_extra_info('peername')
     header = await reader.readuntil(b'\r\n\r\n')
+    print("===header===", header)
     header_stream = header.decode().split("\r\n\r\n")[0]
     request = header_parser(header_stream)
     if "Content-Length" in request["header"]:
@@ -259,17 +260,15 @@ async def handle_message(reader, writer):
     writer.close()
 
 
-def execute_server(host='0.0.0.0', port=8000):
-# def execute_server(host='127.0.0.1', port=8000):
+def execute_server(host='0.0.0.0', port=8000):  # def execute_server(host='127.0.0.1', port=8000):
     """Execute the server."""
-    print("entered execute_server")
     loop = asyncio.get_event_loop()
     # loop.set_debug()
     coro = asyncio.start_server(handle_message, host, port, loop=loop)
     server = loop.run_until_complete(coro)
     print('Serving on {}'.format(server.sockets[0].getsockname()))
     try:
-        loop.run_forever()  # ???
+        loop.run_forever()
     except KeyboardInterrupt:
         print("\nShutting down the server...\n")
     server.close()
