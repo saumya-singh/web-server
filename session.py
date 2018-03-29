@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Add sessions."""
+
 from uuid import uuid4
 
 
