@@ -1,5 +1,5 @@
-﻿##Build your own server in a week
-
+﻿## Build your own server in a week
+---
 
 A web server is a computer system that processes requests via HTTP, the basic network protocol used to distribute information on the World Wide Web. The term can refer to the entire system, or specifically to the software that accepts and supervises the HTTP requests.
 
@@ -22,10 +22,9 @@ Here, you will have to choose about how you want to handle concurrency.
 	* using muti-threading
 
 1. If you choose to handle concurrency asynchronously, then after parsing your request make all the subsequent handlers in such a away that the next handler could be called using a next() function.
-
-e.g. 	list_of_all_handlers = [static_handler, route_handler, .......]
-The first time when we call next() -- static_handler is executed.
-Secondly, when next() is called within the static_handler – route handler is executed.
+	* e.g. 	list_of_all_handlers = [static_handler, route_handler, .......]
+	* The first time when we call next() -- static_handler is executed.
+	* Secondly, when next() is called within the static_handler – route handler is executed.
 
 1. Start with the handlers to get the response.
 It would be great help if you see how  a backend framework works...this will save you a lot of time.
