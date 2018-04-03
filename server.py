@@ -277,6 +277,7 @@ def execute_server(host='0.0.0.0', port=8000):  # def execute_server(host='127.0
 
 
 HANDLERS = [body_handler, static_file_handler, route_handler, err_404_handler]
+# HANDLERS = [body_handler, session_handler, static_file_handler, route_handler, err_404_handler]
 
 
 if __name__ == '__main__':
