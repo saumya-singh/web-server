@@ -5,21 +5,24 @@ import redis
 class Logger:
     """Log info in Redis DB."""
 
-    def __init__(self, DEBUG=False, FILENAME=""):
-        self.FILENAME = FILENAME
+    def __init__(self, DEBUG=False):
+        self.DEBUG = DEBUG
 
     def __call__(self, request, response):
         return self.logger(request, response)
 
     def logger(self, request, response):
-        date = response["Date"]
+        ip = request["header"]["Host"].split(":")[0]
         method = request["method"]
         path = request["path"]
+        date = response["Date"]
         status = response["status"]
-        log = "{} - {} - {} - {}".format(date, method, path, status)
-        self.write_print_logs(log)
-        return request, response
-
-    def write_logs(self, log):
-        r = redis.StrictRedis()
-        reply = r.execute_command()
+        if self.DEBUG:
+            log = """Host: {}
+            Request Method : {}
+            Request Path: {}
+            Resonse Details: {} - {}""".format(ip, method, path, date, status)
+            print(log)
+        redis_obj = redis.StrictRedis(host='localhost', port=6379, db=0)
+        redis_obj.hmset(name="{}".format(date), mapping={"ip": ip,
+                        "method": method, "path": path, "status": status})
