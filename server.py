@@ -130,11 +130,15 @@ def static_file_handler(request, response, next_):
 
 
 def body_handler(request, response, next_):
-    """Parse the body of request."""
+    """Parse the request body."""
     content_type = request["header"].get("Content-Type", False)
     if content_type:
-        request["body"] = json.loads(request["body"].decode())
-        # print(f'\n\n\n\n{request["body"]}\n\n\n')
+        if "application/json" in content_type:
+            request["body"] = json.loads(request["body"].decode())
+        elif "application/x-www-form-urlencoded" in content_type:
+            request["body"] = query_parser(request["body"].decode())
+        elif "multipart/form-data" in content_type:
+            request = form_parser(request)
     return next_(request, response, next_)
 
 
@@ -179,20 +183,6 @@ def header_parser(header_stream):
         header["Cookie"] = dict([cookie.split("=") for cookie in
                                 header["Cookie"].split(";")])
     request["header"] = header
-    return request
-
-
-def body_parser(request):
-    """Parse the request body."""
-    content_type = request["header"]["Content-Type"]
-    body_stream = request["body"]
-    # application/x-www-form-urlencoded , multipart/form-data, application/json
-    if content_type == "application/json":
-        request["body"] = json.loads(body_stream.decode())
-    elif content_type == "application/x-www-form-urlencoded":
-        request["body"] = query_parser(body_stream.decode())
-    elif "multipart/form-data" in content_type:
-        request = form_parser(request)
     return request
 
 

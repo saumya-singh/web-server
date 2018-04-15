@@ -130,11 +130,15 @@ def static_file_handler(request, response, next_):
 
 
 def body_handler(request, response, next_):
-    """Parse the body of request."""
+    """Parse the request body."""
     content_type = request["header"].get("Content-Type", False)
     if content_type:
-        request["body"] = json.loads(request["body"].decode())
-        # print(f'\n\n\n\n{request["body"]}\n\n\n')
+        if "application/json" in content_type:
+            request["body"] = json.loads(request["body"].decode())
+        elif "application/x-www-form-urlencoded" in content_type:
+            request["body"] = query_parser(request["body"].decode())
+        elif "multipart/form-data" in content_type:
+            request = form_parser(request)
     return next_(request, response, next_)
 
 
